@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Event Configuration — Interdepartmental Cup 2.0{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚙️ Event Configuration</h1>
+        <p class="page-sub">Interdepartmental Cup 2.0 — Manage Sports, Gender Categories &amp; Department Affiliations</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.participants_directory') }}" class="btn btn-outline">View All Participants →</a>
+        <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary">+ Create Tournament</a>
+    </div>
+</div>
+
+<!-- Stats strip -->
+<div class="stats-strip" style="display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+    <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; flex: 1; min-width: 150px;">
+        <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Configured Sports</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--accent); margin-top: 4px;">{{ sports | length }}</div>
+    </div>
+    <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; flex: 1; min-width: 150px;">
+        <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Active Departments</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--blue); margin-top: 4px;">{{ departments | length }}</div>
+    </div>
+    <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; flex: 1; min-width: 150px;">
+        <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Total Tournaments</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--green); margin-top: 4px;">{{ tournaments | length }}</div>
+    </div>
+    <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; flex: 1; min-width: 150px;">
+        <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Total Registered Teams</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--orange); margin-top: 4px;">{{ teams | length }}</div>
+    </div>
+</div>
+
+<div class="two-col" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; align-items: start;">
+    
+    <!-- LEFT: Sports & Category Configuration -->
+    <div class="panel">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h2 class="panel-title">🏆 Sports &amp; Category Rules</h2>
+                <p class="panel-sub" style="font-size: 13px; color: var(--text-muted);">
+                    Select which categories (Boys / Girls) are available for each sport. Changes can be modified anytime.
+                </p>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="sports-table-wrapper" style="overflow-x: auto;">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                            <th style="padding: 10px 8px;">Sport</th>
+                            <th style="padding: 10px 8px;">Result Mode</th>
+                            <th style="padding: 10px 8px;">Allowed Categories</th>
+                            <th style="padding: 10px 8px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in sports %}
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 12px 8px; font-weight: 600;">
+                                <span style="font-size: 18px; margin-right: 6px;">{{ s.icon }}</span>
+                                {{ s.name }}
+                                <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">code: {{ s.code }}</div>
+                            </td>
+                            <td style="padding: 12px 8px;">
+                                <span class="badge" style="background: rgba(255,255,255,0.06); padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                                    {{ 'Score-based' if s.result_mode == 'score_based' else 'Winner-only' }}
+                                </span>
+                            </td>
+                            <td style="padding: 12px 8px;">
+                                <form action="{{ url_for('admin.update_sport_categories', sport_id=s.id) }}" method="POST" id="form-sport-{{ s.id }}" style="display: flex; gap: 12px; align-items: center;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="categories" value="Boys" {% if s.has_category('Boys') %}checked{% endif %}>
+                                        <span>Boys</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="categories" value="Girls" {% if s.has_category('Girls') %}checked{% endif %}>
+                                        <span>Girls</span>
+                                    </label>
+                                </form>
+                            </td>
+                            <td style="padding: 12px 8px; text-align: right;">
+                                <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                                    <button type="submit" form="form-sport-{{ s.id }}" class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 12px;">
+                                        Save
+                                    </button>
+                                    <form action="{{ url_for('admin.delete_sport', sport_id=s.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete sport {{ s.name }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn-icon btn-danger" style="width: 28px; height: 28px; font-size: 14px;" title="Delete Sport">×</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Add new sport collapse / form -->
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <details>
+                    <summary style="cursor: pointer; font-weight: 600; color: var(--accent); user-select: none;">
+                        + Add Custom Sport
+                    </summary>
+                    <form action="{{ url_for('admin.add_sport') }}" method="POST" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Sport Name</label>
+                            <input type="text" name="name" class="form-input form-input-sm" placeholder="e.g. Table Tennis" required>
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Code (slug)</label>
+                            <input type="text" name="code" class="form-input form-input-sm" placeholder="e.g. table_tennis">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Icon Emoji</label>
+                            <input type="text" name="icon" class="form-input form-input-sm" placeholder="e.g. 🏓" value="🏆">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Result Mode</label>
+                            <select name="result_mode" class="form-select form-select-sm">
+                                <option value="score_based">Score-based (points/goals)</option>
+                                <option value="winner_only">Winner-only (win/tie)</option>
+                            </select>
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <label class="form-label" style="font-size: 12px;">Allowed Categories</label>
+                            <div style="display: flex; gap: 16px; margin-top: 4px;">
+                                <label><input type="checkbox" name="categories" value="Boys" checked> Boys</label>
+                                <label><input type="checkbox" name="categories" value="Girls" checked> Girls</label>
+                            </div>
+                        </div>
+                        <div style="grid-column: span 2; margin-top: 6px;">
+                            <button type="submit" class="btn btn-secondary btn-sm">+ Add Sport</button>
+                        </div>
+                    </form>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Department Management -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">🏛️ Department Affiliations</h2>
+            <p class="panel-sub" style="font-size: 13px; color: var(--text-muted);">
+                Participants represent their department. Departments do not separate tournaments.
+            </p>
+        </div>
+        <div class="panel-body">
+            <ul class="dept-list" style="display: flex; flex-direction: column; gap: 8px;">
+                {% for d in departments %}
+                <li style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge" style="background: var(--blue); color: #000; font-weight: 700; font-family: var(--font-mono);">{{ d.code }}</span>
+                        <span style="font-weight: 500;">{{ d.name }}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 12px; color: var(--green);">● Active</span>
+                        <form action="{{ url_for('admin.delete_department', dept_id=d.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete department {{ d.code }}?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-icon btn-danger" style="width: 24px; height: 24px; font-size: 13px;" title="Delete Department">×</button>
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <!-- Add department form -->
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <details>
+                    <summary style="cursor: pointer; font-weight: 600; color: var(--accent); user-select: none;">
+                        + Add Department
+                    </summary>
+                    <form action="{{ url_for('admin.add_department') }}" method="POST" style="margin-top: 14px; display: flex; flex-direction: column; gap: 10px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Department Code</label>
+                            <input type="text" name="code" class="form-input form-input-sm" placeholder="e.g. MECH" required uppercase>
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 12px;">Full Department Name</label>
+                            <input type="text" name="name" class="form-input form-input-sm" placeholder="e.g. Mechanical Engineering" required>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm">+ Add Department</button>
+                    </form>
+                </details>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Data Management / Purge Demo Data -->
+<div class="panel" style="margin-top: 24px; border: 1px solid rgba(255, 77, 106, 0.3); background: rgba(255, 77, 106, 0.03);">
+    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 class="panel-title" style="color: var(--red);">⚠️ Tournament Data Management</h2>
+            <p class="panel-sub" style="font-size: 13px; color: var(--text-muted);">
+                Reset and remove all tournaments, teams, fixtures, and match results to start with a fresh slate. Sports and Departments will be preserved.
+            </p>
+        </div>
+        <form action="{{ url_for('admin.clear_all_data') }}" method="POST" onsubmit="return confirm('⚠️ ARE YOU SURE?\nThis will permanently delete all tournaments, teams, matches, brackets, and standings so you can start with a fresh tournament slate.\n\nSports and Departments will be kept.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm" style="font-weight: 600;">
+                🗑️ Clear All Tournament Data
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

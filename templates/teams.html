@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Team Management — {{ tournament.name }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Team Management</h1>
+        <p class="page-sub">{{ tournament.name }}</p>
+    </div>
+    <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+        {% if tournament.is_setup() %}
+        <a href="{{ url_for('tournament.edit_tournament', tournament_id=tournament.id) }}" class="btn btn-outline">⚙️ Edit Settings</a>
+        {% endif %}
+        {% if tournament.is_setup() and teams | length >= 2 %}
+        <form action="{{ url_for('tournament.generate_fixtures', tournament_id=tournament.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary" onclick="return confirm('Generate fixtures with {{ teams | length }} teams? This cannot be undone.')">
+                Generate Fixtures →
+            </button>
+        </form>
+        {% elif not tournament.is_setup() %}
+        <a href="{{ url_for('match.fixtures', tournament_id=tournament.id) }}" class="btn btn-primary">View Fixtures →</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="two-col">
+    <!-- Add Team Panel -->
+    {% if tournament.is_setup() %}
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Add Participant / Team</h2>
+        </div>
+        <div class="panel-body">
+            <form method="POST" action="{{ url_for('team.manage_teams', tournament_id=tournament.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add">
+                
+                <div class="form-group">
+                    <label class="form-hint">Team or Player Name</label>
+                    <input
+                        type="text"
+                        name="team_name"
+                        class="form-input"
+                        placeholder="e.g. CSE Warriors or Rahul Sharma"
+                        required
+                        autocomplete="off"
+                        id="team-input"
+                    >
+                </div>
+
+                <div class="two-col-sm" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label class="form-hint">Department</label>
+                        <select name="department" class="form-select form-select-sm" required>
+                            {% for d in departments %}
+                            <option value="{{ d.code }}">{{ d.code }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-hint">Category / Gender</label>
+                        <select name="gender" class="form-select form-select-sm" required>
+                            {% for c in allowed_categories %}
+                            <option value="{{ c }}" {% if tournament.gender == c %}selected{% endif %}>{{ c }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-hint">Captain / Player Name <em>(optional)</em></label>
+                    <input
+                        type="text"
+                        name="player_name"
+                        class="form-input form-input-sm"
+                        placeholder="e.g. Rahul Sharma"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">Add to Tournament</button>
+            </form>
+        </div>
+        <div class="panel-info">
+            <div class="info-row">
+                <span>Total added:</span>
+                <strong>{{ total_team_count }}</strong>
+            </div>
+            <div class="info-row">
+                <span>Minimum required:</span>
+                <strong>2</strong>
+            </div>
+            {% if tournament.format == 'round_robin' %}
+            <div class="info-note">
+                Round Robin: {{ total_team_count }} teams = {{ rr_match_count }} total matches.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Teams List -->
+    <div class="panel">
+        <div class="panel-header" style="flex-direction: column; align-items: stretch; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="panel-title">Participants &amp; Teams ({{ teams | length }}{% if teams | length != total_team_count %} of {{ total_team_count }}{% endif %})</h2>
+            </div>
+            <!-- Filter Bar for Teams -->
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <div class="search-box-sm" style="flex: 1; min-width: 130px;">
+                    <input type="text" id="team-search" placeholder="Search name or dept..." class="form-input form-input-sm">
+                </div>
+                <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='?dept='+this.value+'&gender={{ gender_filter }}'">
+                    <option value="ALL" {% if dept_filter == 'ALL' %}selected{% endif %}>All Depts</option>
+                    {% for d in departments %}
+                    <option value="{{ d.code }}" {% if dept_filter == d.code %}selected{% endif %}>{{ d.code }}</option>
+                    {% endfor %}
+                </select>
+                <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='?dept={{ dept_filter }}&gender='+this.value">
+                    <option value="all" {% if gender_filter == 'all' %}selected{% endif %}>All Categories</option>
+                    {% for c in allowed_categories %}
+                    <option value="{{ c }}" {% if gender_filter == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+                {% if dept_filter != 'ALL' or gender_filter != 'all' %}
+                <a href="{{ url_for('team.manage_teams', tournament_id=tournament.id) }}" class="btn btn-outline btn-sm">Clear</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="panel-body">
+            {% if teams %}
+            <ul class="team-list" id="team-list">
+                {% for team in teams %}
+                <li class="team-item" data-name="{{ team.name | lower }} {{ team.department | lower }} {{ (team.player_name or '') | lower }}">
+                    <div class="team-info">
+                        <div class="team-avatar">{{ team.name[0] | upper }}</div>
+                        <div>
+                            <span class="team-name" id="name-{{ team.id }}">{{ team.name }}</span>
+                            {% if team.player_name and team.player_name != team.name %}
+                            <span style="font-size: 12px; color: var(--text-muted); display: block;">👤 {{ team.player_name }}</span>
+                            {% endif %}
+                        </div>
+                        <span class="badge" style="background: rgba(71, 178, 255, 0.15); color: var(--blue); border: 1px solid rgba(71, 178, 255, 0.3); font-size: 11px; font-weight: 700; font-family: var(--font-mono); margin-left: 6px;">
+                            {{ team.department or 'CSE' }}
+                        </span>
+                        {% set g = team.gender or tournament.gender %}
+                        {% if g %}
+                        <span class="badge" style="font-size: 11px; margin-left: 4px; {% if g == 'Boys' %}background: rgba(71, 255, 178, 0.15); color: var(--green);{% else %}background: rgba(255, 77, 106, 0.15); color: var(--red);{% endif %}">
+                            {{ g }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if tournament.is_setup() %}
+                    <div class="team-actions">
+                        <button class="btn-icon btn-edit" onclick="toggleEdit({{ team.id }})" title="Edit">✏</button>
+                        <form action="{{ url_for('team.delete_team', tournament_id=tournament.id, team_id=team.id) }}" method="POST" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn-icon btn-danger" title="Remove" onclick="return confirm('Remove {{ team.name }}?')">×</button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    <!-- Inline edit form -->
+                    {% if tournament.is_setup() %}
+                    <div class="edit-form" id="edit-{{ team.id }}" style="display:none; width: 100%; margin-top: 8px;">
+                        <form action="{{ url_for('team.edit_team', tournament_id=tournament.id, team_id=team.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <div class="edit-row">
+                                    <input type="text" name="new_name" value="{{ team.name }}" class="form-input form-input-sm" placeholder="Name" required>
+                                    <select name="new_department" class="form-select form-select-sm">
+                                        {% for d in departments %}
+                                        <option value="{{ d.code }}" {% if (team.department or 'CSE') == d.code %}selected{% endif %}>{{ d.code }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <select name="new_gender" class="form-select form-select-sm">
+                                        {% for c in allowed_categories %}
+                                        <option value="{{ c }}" {% if (team.gender or tournament.gender) == c %}selected{% endif %}>{{ c }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="edit-row">
+                                    <input type="text" name="new_player_name" value="{{ team.player_name or '' }}" class="form-input form-input-sm" placeholder="Captain/Player name (optional)">
+                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit({{ team.id }})">Cancel</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state-sm">
+                <p>No teams match the current criteria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleEdit(teamId) {
+    const editForm = document.getElementById('edit-' + teamId);
+    const isVisible = editForm.style.display !== 'none';
+    // Hide all
+    document.querySelectorAll('.edit-form').forEach(f => f.style.display = 'none');
+    if (!isVisible) {
+        editForm.style.display = 'block';
+        editForm.querySelector('input').focus();
+    }
+}
+
+// Live search
+document.getElementById('team-search').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.team-item').forEach(item => {
+        item.style.display = item.dataset.name.includes(q) ? '' : 'none';
+    });
+});
+
+// Auto-focus team input
+const teamInput = document.getElementById('team-input');
+if (teamInput) teamInput.focus();
+</script>
+{% endblock %}

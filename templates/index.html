@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Interdepartmental Cup 2.0 — Home{% endblock %}
+{% block content %}
+
+<div class="hero">
+    <div class="hero-content">
+        <h1 class="hero-title">INTERDEPARTMENTAL<em>CUP 2.0</em></h1>
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary btn-lg">
+                Create Tournament →
+            </a>
+            <a href="{{ url_for('admin.participants_directory') }}" class="btn btn-outline btn-lg">
+                Participants Directory →
+            </a>
+        </div>
+    </div>
+    <div class="hero-media">
+        <a href="{{ url_for('static', filename='img/interdepartmental-cup.jpg') }}" target="_blank" title="View Full Interdepartmental Cup 2.0 Poster">
+            <img src="{{ url_for('static', filename='img/interdepartmental-cup.jpg') }}"
+                 alt="INTERDEPARTMENTAL CUP 2.0 Official Poster"
+                 class="hero-poster-img">
+        </a>
+    </div>
+</div>
+
+<section class="tournaments-section">
+    <div class="section-header" style="flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 class="section-title">Tournaments</h2>
+            <span class="section-count">{{ tournaments | length }} total</span>
+        </div>
+
+        <!-- Filter bar for tournaments -->
+        <div class="filters-bar" style="margin: 0; padding: 0; background: none; border: none;">
+            <form method="GET" action="{{ url_for('tournament.index') }}" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <select name="sport" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if sport_filter == 'all' %}selected{% endif %}>All Sports</option>
+                    {% for s in sports %}
+                    <option value="{{ s.code }}" {% if sport_filter == s.code %}selected{% endif %}>{{ s.icon }} {{ s.name }}</option>
+                    {% endfor %}
+                </select>
+                <select name="gender" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if gender_filter == 'all' %}selected{% endif %}>All Categories</option>
+                    <option value="Boys" {% if gender_filter == 'Boys' %}selected{% endif %}>Boys</option>
+                    <option value="Girls" {% if gender_filter == 'Girls' %}selected{% endif %}>Girls</option>
+                </select>
+                <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="ALL" {% if dept_filter == 'ALL' %}selected{% endif %}>All Depts</option>
+                    {% for d in departments %}
+                    <option value="{{ d.code }}" {% if dept_filter == d.code %}selected{% endif %}>{{ d.code }}</option>
+                    {% endfor %}
+                </select>
+                {% if sport_filter != 'all' or gender_filter != 'all' or dept_filter != 'ALL' %}
+                <a href="{{ url_for('tournament.index') }}" class="btn btn-outline btn-sm">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    {% if tournaments %}
+    <div class="tournament-grid">
+        {% for t in tournaments %}
+        <div class="t-card t-card-{{ t.status }}">
+            <div class="t-card-header">
+                <div class="t-card-badges" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <span class="badge badge-sport">
+                        {{ t.sport_type | title }}
+                    </span>
+                    {% if t.gender %}
+                    <span class="badge badge-{{ t.gender | lower }}">
+                        {{ t.gender }}
+                    </span>
+                    {% endif %}
+                    <span class="badge badge-format badge-{{ t.format }}">{{ t.format | replace('_', ' ') | upper }}</span>
+                    <span class="badge badge-status badge-{{ t.status }}">{{ t.status | upper }}</span>
+                </div>
+                <form action="{{ url_for('tournament.delete_tournament', tournament_id=t.id) }}" method="POST" class="delete-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn-icon btn-danger" title="Delete" onclick="return confirm('Delete this tournament?');">×</button>
+                </form>
+            </div>
+            <h3 class="t-card-name">{{ t.name }}</h3>
+            <div class="t-card-meta">
+                <span class="meta-item">
+                    <span class="meta-label">Participants</span>
+                    <span class="meta-value">{{ t.team_count() }}</span>
+                </span>
+                <span class="meta-item">
+                    <span class="meta-label">Scope</span>
+                    <span class="meta-value" style="font-family: var(--font-mono);">{{ t.department or 'All' }}</span>
+                </span>
+                <span class="meta-item">
+                    <span class="meta-label">Created</span>
+                    <span class="meta-value">{{ t.created_at.strftime('%b %d') if t.created_at else '—' }}</span>
+                </span>
+            </div>
+            <div class="t-card-actions">
+                {% if t.is_setup() %}
+                    <a href="{{ url_for('team.manage_teams', tournament_id=t.id) }}" class="btn btn-secondary btn-sm">Manage Teams</a>
+                    <a href="{{ url_for('tournament.edit_tournament', tournament_id=t.id) }}" class="btn btn-outline btn-sm" title="Edit format, sport, or settings before entering teams">⚙️ Settings</a>
+                {% else %}
+                    <a href="{{ url_for('standings.progress', tournament_id=t.id) }}" class="btn btn-secondary btn-sm">View Progress</a>
+                    <a href="{{ url_for('match.fixtures', tournament_id=t.id) }}" class="btn btn-outline btn-sm">Fixtures</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="background: var(--bg-card); padding: 48px 32px; border-radius: var(--radius); border: 1px solid var(--border); text-align: center;">
+        <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">🏆</div>
+        {% if sport_filter != 'all' or gender_filter != 'all' or dept_filter != 'ALL' %}
+            <h3>No tournaments match the selected filters</h3>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">Try clearing your filters or create a new tournament.</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <a href="{{ url_for('tournament.index') }}" class="btn btn-secondary">Clear Filters</a>
+                <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary">+ Create Tournament</a>
+            </div>
+        {% else %}
+            <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 8px;">INTERDEPARTMENTAL CUP 2.0 Ready!</h2>
+            <p style="color: var(--text-muted); margin-bottom: 24px; max-width: 540px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+                All demo data has been cleared. The site is fresh and ready for the administrator to configure sports, create tournaments, and register department teams.
+            </p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; max-width: 720px; margin: 0 auto 28px; text-align: left;">
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                    <div style="font-size: 20px; margin-bottom: 6px;">1️⃣ Sports &amp; Categories</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">6 sports (Cricket, Football, Volleyball, Kabaddi, Chess, Carrom) with Boys/Girls categories ready in Event Config.</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                    <div style="font-size: 20px; margin-bottom: 6px;">2️⃣ Create Tournament</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Choose sport, category (Boys/Girls), format (Round Robin or Knockout), and scoring rules.</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                    <div style="font-size: 20px; margin-bottom: 6px;">3️⃣ Register &amp; Fixtures</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Add department participants (CSE, CSBS, IT, AIML, EXTC) and generate interdepartmental fixtures.</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+                <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary btn-lg">+ Create Tournament</a>
+                <a href="{{ url_for('admin.event_config') }}" class="btn btn-outline btn-lg">⚙️ Event Config</a>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{% endblock %}

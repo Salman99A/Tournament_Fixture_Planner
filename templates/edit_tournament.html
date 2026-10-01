@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Edit Tournament Settings — {{ tournament.name }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚙️ Edit Tournament Settings</h1>
+        <p class="page-sub">Configure options before entering teams: {{ tournament.name }}</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('team.manage_teams', tournament_id=tournament.id) }}" class="btn btn-outline">Back to Teams →</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <form method="POST" action="{{ url_for('tournament.edit_tournament', tournament_id=tournament.id) }}" id="edit-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label class="form-label" for="name">Tournament Name</label>
+            <input type="text" id="name" name="name" class="form-input"
+                   value="{{ tournament.name }}"
+                   required maxlength="100" autocomplete="off">
+            <span class="form-hint">Display title for this tournament.</span>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Tournament Format</label>
+            <div class="format-cards">
+                <label class="format-card" for="format-ko">
+                    <input type="radio" id="format-ko" name="format" value="knockout" {% if tournament.format == 'knockout' %}checked{% endif %} required>
+                    <div class="format-card-inner">
+                        <div class="format-icon">⚡</div>
+                        <div class="format-name">Knockout</div>
+                        <div class="format-desc">Single elimination brackets. Winners advance, losers go home.</div>
+                    </div>
+                </label>
+                <label class="format-card" for="format-rr">
+                    <input type="radio" id="format-rr" name="format" value="round_robin" {% if tournament.format == 'round_robin' %}checked{% endif %} required>
+                    <div class="format-card-inner">
+                        <div class="format-icon">◉</div>
+                        <div class="format-name">Round Robin</div>
+                        <div class="format-desc">Every team plays every other team. Standings &amp; points determine the winner.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="sport_type">Sport</label>
+            <select id="sport_type" name="sport_type" class="form-select">
+                {% for s in sports %}
+                <option value="{{ s.code }}" data-categories="{{ s.categories }}" data-mode="{{ s.result_mode }}" {% if tournament.sport_type == s.code %}selected{% endif %}>
+                    {{ s.icon }} {{ s.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="sport-info-box" id="sport-info"></div>
+        </div>
+
+        <div class="two-col-sm" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="gender">Category / Gender</label>
+                <select id="gender" name="gender" class="form-select">
+                    <option value="Boys" {% if tournament.gender == 'Boys' %}selected{% endif %}>Boys</option>
+                    <option value="Girls" {% if tournament.gender == 'Girls' %}selected{% endif %}>Girls</option>
+                </select>
+                <span class="form-hint" id="gender-hint">Available categories configured for this sport.</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="department">Department Scope</label>
+                <select id="department" name="department" class="form-select">
+                    <option value="All" {% if tournament.department == 'All' %}selected{% endif %}>All (Interdepartmental Cup)</option>
+                    {% for d in departments %}
+                    <option value="{{ d.code }}" {% if tournament.department == d.code %}selected{% endif %}>{{ d.code }} Only</option>
+                    {% endfor %}
+                </select>
+                <span class="form-hint">Allows CSE vs IT, AIML vs CSBS, etc.</span>
+            </div>
+        </div>
+
+        <!-- Point rules (round robin only) -->
+        <div class="form-group" id="point-rules" style="display:none;">
+            <label class="form-label">Point Rules</label>
+            <div class="point-rules-row">
+                <div class="point-rule-item">
+                    <label class="form-hint">Win</label>
+                    <input type="number" name="points_win" id="pts_win"
+                           class="form-input score-input-sm" value="{{ tournament.points_win }}" min="0" max="99">
+                </div>
+                <div class="point-rule-item">
+                    <label class="form-hint" id="draw-label">Draw</label>
+                    <input type="number" name="points_draw" id="pts_draw"
+                           class="form-input score-input-sm" value="{{ tournament.points_draw }}" min="0" max="99">
+                </div>
+                <div class="point-rule-item">
+                    <label class="form-hint">Loss</label>
+                    <input type="number" name="points_loss" id="pts_loss"
+                           class="form-input score-input-sm" value="{{ tournament.points_loss }}" min="0" max="99">
+                </div>
+            </div>
+            <span class="form-hint" id="point-rules-hint"></span>
+        </div>
+
+        <div class="form-actions" style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Tournament Settings</button>
+            <a href="{{ url_for('team.manage_teams', tournament_id=tournament.id) }}" class="btn btn-outline btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    const sportSelect = document.getElementById('sport_type');
+    const genderSelect = document.getElementById('gender');
+    const genderHint = document.getElementById('gender-hint');
+    const currentGender = "{{ tournament.gender }}";
+
+    function updateCategoriesForSport(selectedCode) {
+        const opt = sportSelect.options[sportSelect.selectedIndex];
+        let cats = ['Boys', 'Girls'];
+        if (opt && opt.getAttribute('data-categories')) {
+            cats = opt.getAttribute('data-categories').split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        const prevVal = genderSelect.value || currentGender;
+        genderSelect.innerHTML = '';
+        cats.forEach(c => {
+            const el = document.createElement('option');
+            el.value = c;
+            el.textContent = c;
+            if (c === prevVal) el.selected = true;
+            genderSelect.appendChild(el);
+        });
+
+        if (genderHint) {
+            genderHint.textContent = `Allowed categories for this sport: ${cats.join(', ')}`;
+        }
+    }
+
+    sportSelect.addEventListener('change', function() {
+        updateCategoriesForSport(this.value);
+        updateFormatUI();
+    });
+
+    const formatRadios = document.querySelectorAll('input[name="format"]');
+    const pointRules = document.getElementById('point-rules');
+
+    function updateFormatUI() {
+        let fmt = 'knockout';
+        formatRadios.forEach(r => { if (r.checked) fmt = r.value; });
+        if (fmt === 'round_robin') {
+            pointRules.style.display = 'block';
+        } else {
+            pointRules.style.display = 'none';
+        }
+    }
+
+    formatRadios.forEach(r => r.addEventListener('change', updateFormatUI));
+
+    // Initial run
+    updateCategoriesForSport(sportSelect.value);
+    updateFormatUI();
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Standings — {{ tournament.name }}{% endblock %}
+{% block content %}
+
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h1 class="page-title">Standings</h1>
+        <p class="page-sub">{{ tournament.name }} · {{ tournament.sport_type | title }} · Round Robin</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <form method="GET" style="display:inline-flex; align-items:center; gap:6px;">
+            <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="ALL">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.code }}" {% if dept_filter == d.code %}selected{% endif %}>{{ d.code }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <a href="{{ url_for('match.results_page', tournament_id=tournament.id) }}" class="btn btn-primary">Update Results →</a>
+    </div>
+</div>
+
+{% if entries %}
+<div class="standings-table-wrap">
+    <table class="standings-table">
+        <thead>
+            <tr>
+                <th class="th-rank">#</th>
+                <th class="th-team">Participant / Team</th>
+                <th title="Played">P</th>
+                <th title="Wins">W</th>
+
+                {# Draw/Tie column: hide for winner_only sports where draws are not tracked #}
+                {% if tournament.draws_allowed or tournament.sport_type in ('cricket', 'chess') %}
+                <th title="{% if tournament.sport_type in ('cricket', 'chess') %}Ties/Draws{% else %}Draws{% endif %}">
+                    {% if tournament.sport_type in ('cricket', 'chess') %}T/D{% else %}D{% endif %}
+                </th>
+                {% endif %}
+
+                <th title="Losses">L</th>
+
+                {# No Result column for cricket only #}
+                {% if tournament.sport_type == 'cricket' %}
+                <th title="No Result / Abandoned">NR</th>
+                {% endif %}
+
+                {# Score columns only for score_based sports #}
+                {% if cfg.show_scores %}
+                <th title="{{ cfg.col_sf_title }}">{{ cfg.col_sf }}</th>
+                <th title="{{ cfg.col_sa_title }}">{{ cfg.col_sa }}</th>
+                <th title="{{ cfg.col_sd_title }}">{{ cfg.col_sd }}</th>
+                {% endif %}
+
+                <th title="Points" class="th-pts">Pts</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr class="standings-row {% if loop.index == 1 %}row-top{% endif %}">
+                <td class="td-rank">
+                    {% if loop.index == 1 %}<span class="rank-badge">🥇</span>
+                    {% elif loop.index == 2 %}<span class="rank-badge">🥈</span>
+                    {% elif loop.index == 3 %}<span class="rank-badge">🥉</span>
+                    {% else %}<span class="rank-num">{{ loop.index }}</span>{% endif %}
+                </td>
+                <td class="td-team">
+                    <div class="team-cell">
+                        <div class="team-avatar team-avatar-sm">{{ entry.team.name[0] | upper }}</div>
+                        <div>
+                            <span>{{ entry.team.name }}</span>
+                            {% if entry.team.player_name and entry.team.player_name != entry.team.name %}
+                            <span style="font-size: 11px; color: var(--text-muted); display: block;">👤 {{ entry.team.player_name }}</span>
+                            {% endif %}
+                        </div>
+                        {% if entry.team.department %}
+                        <span class="badge" style="font-size: 10px; padding: 1px 5px; margin-left: 6px; background: rgba(71, 178, 255, 0.15); color: var(--blue); border: 1px solid rgba(71, 178, 255, 0.3);">{{ entry.team.department }}</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>{{ entry.played }}</td>
+                <td class="stat-win">{{ entry.wins }}</td>
+
+                {% if tournament.draws_allowed or tournament.sport_type == 'cricket' %}
+                <td class="stat-draw">{{ entry.draws }}</td>
+                {% endif %}
+
+                <td class="stat-loss">{{ entry.losses }}</td>
+
+                {% if tournament.sport_type == 'cricket' %}
+                <td class="stat-nr">{{ entry.no_results }}</td>
+                {% endif %}
+
+                {% if cfg.show_scores %}
+                <td>{{ entry.score_for }}</td>
+                <td>{{ entry.score_against }}</td>
+                <td class="{% if entry.score_difference > 0 %}gd-pos{% elif entry.score_difference < 0 %}gd-neg{% endif %}">
+                    {% if entry.score_difference > 0 %}+{% endif %}{{ entry.score_difference }}
+                </td>
+                {% endif %}
+
+                <td class="td-pts">{{ entry.points }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="standings-legend">
+    <span class="legend-item">
+        <span class="legend-color stat-win">W</span> = Win ({{ tournament.points_win }} pts)
+    </span>
+
+    {% if tournament.draws_allowed or tournament.sport_type == 'cricket' %}
+    <span class="legend-item">
+        <span class="legend-color stat-draw">
+            {% if tournament.sport_type == 'cricket' %}T{% else %}D{% endif %}
+        </span>
+        = {% if tournament.sport_type == 'cricket' %}Tie{% else %}Draw{% endif %}
+        ({{ tournament.points_draw }} pt each)
+    </span>
+    {% endif %}
+
+    <span class="legend-item">
+        <span class="legend-color stat-loss">L</span> = Loss ({{ tournament.points_loss }} pts)
+    </span>
+
+    {% if tournament.sport_type == 'cricket' %}
+    <span class="legend-item">NR = No Result / Abandoned (0 pts)</span>
+    {% endif %}
+
+    {% if cfg.show_scores %}
+    <span class="legend-item">{{ cfg.col_sd }} = {{ cfg.col_sd_title }}</span>
+    {% endif %}
+
+    {% if cfg.tiebreaker == 'wins' %}
+    <span class="legend-item tiebreaker-note">Tiebreaker: Wins</span>
+    {% elif cfg.tiebreaker == 'score_diff' %}
+    <span class="legend-item tiebreaker-note">Tiebreaker: {{ cfg.col_sd_title }}</span>
+    {% endif %}
+</div>
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">📊</div>
+    <h3>No standings yet</h3>
+    <p>Standings update automatically after each match result is entered.</p>
+</div>
+{% endif %}
+
+{% endblock %}

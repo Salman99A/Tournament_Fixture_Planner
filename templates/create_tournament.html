@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Create Tournament{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <h1 class="page-title">Create Tournament</h1>
+    <p class="page-sub">Set up a new competition</p>
+</div>
+
+<div class="form-container">
+    <form method="POST" action="{{ url_for('tournament.create_tournament') }}" id="create-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label class="form-label" for="name">Tournament Name</label>
+            <input type="text" id="name" name="name" class="form-input"
+                   placeholder="e.g., IPL 2025, Champions Cup"
+                   required maxlength="100" autocomplete="off">
+            <span class="form-hint">Must be unique. Max 100 characters.</span>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Format</label>
+            <div class="format-cards">
+                <label class="format-card" for="format-rr">
+                    <input type="radio" id="format-rr" name="format" value="round_robin" required>
+                    <div class="format-card-inner">
+                        <div class="format-icon">◉</div>
+                        <div class="format-name">Round Robin</div>
+                        <div class="format-desc">Every team plays every other. Points determine the winner.</div>
+                    </div>
+                </label>
+                <label class="format-card" for="format-ko">
+                    <input type="radio" id="format-ko" name="format" value="knockout" required>
+                    <div class="format-card-inner">
+                        <div class="format-icon">⚡</div>
+                        <div class="format-name">Knockout</div>
+                        <div class="format-desc">Single elimination. Winners advance, losers go home.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="sport_type">Sport</label>
+            <select id="sport_type" name="sport_type" class="form-select">
+                {% if sports %}
+                    {% for s in sports %}
+                    <option value="{{ s.code }}" data-categories="{{ s.categories }}" data-mode="{{ s.result_mode }}">{{ s.icon }} {{ s.name }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="cricket" data-categories="Boys,Girls" data-mode="winner_only">🏏 Cricket</option>
+                    <option value="football" data-categories="Boys,Girls" data-mode="score_based">⚽ Football</option>
+                    <option value="volleyball" data-categories="Boys,Girls" data-mode="score_based">🏐 Volleyball</option>
+                    <option value="kabaddi" data-categories="Boys" data-mode="score_based">🤼 Kabaddi</option>
+                    <option value="chess" data-categories="Boys,Girls" data-mode="winner_only">♟️ Chess</option>
+                    <option value="carrom" data-categories="Boys,Girls" data-mode="score_based">🎯 Carrom</option>
+                {% endif %}
+            </select>
+            <div class="sport-info-box" id="sport-info"></div>
+        </div>
+
+        <div class="two-col-sm" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="gender">Category / Gender</label>
+                <select id="gender" name="gender" class="form-select">
+                    <option value="Boys">Boys</option>
+                    <option value="Girls">Girls</option>
+                </select>
+                <span class="form-hint" id="gender-hint">Available categories configured for this sport.</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="department">Department Scope</label>
+                <select id="department" name="department" class="form-select">
+                    <option value="All" selected>All (Interdepartmental Cup)</option>
+                    {% for d in departments %}
+                    <option value="{{ d.code }}">{{ d.code }} Only</option>
+                    {% endfor %}
+                </select>
+                <span class="form-hint">Allows CSE vs IT, AIML vs CSBS, etc.</span>
+            </div>
+        </div>
+
+        <!-- Point rules (round robin only) -->
+        <div class="form-group" id="point-rules" style="display:none;">
+            <label class="form-label">Point Rules</label>
+            <div class="point-rules-row">
+                <div class="point-rule-item">
+                    <label class="form-hint">Win</label>
+                    <input type="number" name="points_win" id="pts_win"
+                           class="form-input score-input-sm" value="3" min="0" max="99">
+                </div>
+                <div class="point-rule-item">
+                    <label class="form-hint" id="draw-label">Draw</label>
+                    <input type="number" name="points_draw" id="pts_draw"
+                           class="form-input score-input-sm" value="1" min="0" max="99">
+                </div>
+                <div class="point-rule-item">
+                    <label class="form-hint">Loss</label>
+                    <input type="number" name="points_loss" id="pts_loss"
+                           class="form-input score-input-sm" value="0" min="0" max="99">
+                </div>
+            </div>
+            <span class="form-hint" id="point-rules-hint"></span>
+        </div>
+
+        <!-- ── Scheduling config (round-robin only) ──────────────────────── -->
+        <div class="form-group sched-config" id="sched-config" style="display:none;">
+            <label class="form-label">
+                📅 Match Scheduling
+                <span class="form-hint-inline">IPL-style weekend slots</span>
+            </label>
+            <div class="sched-config-box">
+                <div class="sched-row">
+                    <div class="sched-field">
+                        <label class="form-hint" for="sched_start_date">Start Date</label>
+                        <input type="date" id="sched_start_date" name="sched_start_date"
+                               class="form-input form-input-sm" value="{{ today }}">
+                        <span class="form-hint">First day matches may be played.</span>
+                    </div>
+                    <div class="sched-field">
+                        <label class="form-hint" for="sched_end_date">End Date <em>(optional)</em></label>
+                        <input type="date" id="sched_end_date" name="sched_end_date"
+                               class="form-input form-input-sm">
+                        <span class="form-hint">Leave blank for default ~2 month window.</span>
+                    </div>
+                    <div class="sched-field sched-field-sm">
+                        <label class="form-hint" for="sched_min_rest">Min Rest Days</label>
+                        <input type="number" id="sched_min_rest" name="sched_min_rest"
+                               class="form-input form-input-sm" value="2" min="1" max="7">
+                        <span class="form-hint">Between matches per team.</span>
+                    </div>
+                </div>
+                <div class="sched-info-row">
+                    <span class="sched-chip">📅 Weekends only</span>
+                    <span class="sched-chip">🕞 3:30 PM &amp; 7:30 PM</span>
+                    <span class="sched-chip">😴 ≥ 2 days rest</span>
+                    <span class="sched-chip">🔁 Greedy round-robin</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('tournament.index') }}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">Create &amp; Add Teams →</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SPORT_META = {
+    cricket:    { mode: 'winner_only',  label: 'Cricket',    winPts: 2, drawPts: 1, lossPts: 0, drawLabel: 'Tie',
+                  info: '🏏 Winner-only. Select winning team or mark as Tie / No Result.' },
+    football:   { mode: 'score_based',  label: 'Football',   winPts: 3, drawPts: 1, lossPts: 0, drawLabel: 'Draw',
+                  info: '⚽ Score-based. Enter goals scored. Win=3, Draw=1.' },
+    volleyball: { mode: 'score_based',  label: 'Volleyball', winPts: 2, drawPts: 0, lossPts: 0, drawLabel: 'Draw',
+                  info: '🏐 Score-based. Enter set scores or match points. High intensity.' },
+    kabaddi:    { mode: 'score_based',  label: 'Kabaddi',    winPts: 3, drawPts: 1, lossPts: 0, drawLabel: 'Tie',
+                  info: '🤼 Score-based. Enter raid and tackle points.' },
+    chess:      { mode: 'winner_only',  label: 'Chess',      winPts: 2, drawPts: 1, lossPts: 0, drawLabel: 'Draw',
+                  info: '♟️ Winner-only. Mark Win or Draw/Stalemate.' },
+    carrom:     { mode: 'score_based',  label: 'Carrom',     winPts: 2, drawPts: 0, lossPts: 0, drawLabel: 'Draw',
+                  info: '🎯 Score-based. Enter board points scored.' },
+    generic:    { mode: 'score_based',  label: 'Generic',    winPts: 3, drawPts: 1, lossPts: 0, drawLabel: 'Draw',
+                  info: '📋 Generic tournament. Enter numeric scores.' },
+};
+
+function updateSportUI() {
+    const sportSelect = document.getElementById('sport_type');
+    const sport  = sportSelect.value;
+    const selectedOption = sportSelect.options[sportSelect.selectedIndex];
+    const fmtEl  = document.querySelector('input[name="format"]:checked');
+    const meta   = SPORT_META[sport] || SPORT_META.generic;
+    const isRR   = fmtEl && fmtEl.value === 'round_robin';
+
+    document.getElementById('sport-info').innerHTML =
+        '<div class="sport-info">' + meta.info + '</div>';
+
+    // Update categories dropdown based on sport's configured categories
+    const rawCats = selectedOption ? selectedOption.getAttribute('data-categories') : 'Boys,Girls';
+    const cats = (rawCats || 'Boys,Girls').split(',').map(s => s.trim()).filter(Boolean);
+    const genderSelect = document.getElementById('gender');
+    const currentGender = genderSelect.value;
+    genderSelect.innerHTML = '';
+    cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        if (c === currentGender || (cats.length === 1)) {
+            opt.selected = true;
+        }
+        genderSelect.appendChild(opt);
+    });
+
+    const hint = document.getElementById('gender-hint');
+    if (hint) {
+        hint.textContent = 'Configured for ' + meta.label + ': ' + cats.join(', ');
+    }
+
+    const rulesDiv  = document.getElementById('point-rules');
+    const schedDiv  = document.getElementById('sched-config');
+    rulesDiv.style.display = isRR ? '' : 'none';
+    schedDiv.style.display = isRR ? '' : 'none';
+
+    if (isRR) {
+        document.getElementById('pts_win').value   = meta.winPts;
+        document.getElementById('pts_draw').value  = meta.drawPts;
+        document.getElementById('pts_loss').value  = meta.lossPts;
+        document.getElementById('draw-label').textContent = meta.drawLabel + '/Tie';
+
+        const pointHint = document.getElementById('point-rules-hint');
+        if (meta.mode === 'winner_only') {
+            pointHint.textContent = 'Default for ' + meta.label + ': Win=' + meta.winPts + ', Tie=' + meta.drawPts + ', Loss=' + meta.lossPts + '.';
+        } else {
+            pointHint.textContent = 'Default for ' + meta.label + ': Win=' + meta.winPts + ', Draw=' + meta.drawPts + ', Loss=' + meta.lossPts + '.';
+        }
+    }
+}
+
+document.getElementById('sport_type').addEventListener('change', updateSportUI);
+document.querySelectorAll('input[name="format"]').forEach(r => r.addEventListener('change', updateSportUI));
+updateSportUI();
+</script>
+{% endblock %}

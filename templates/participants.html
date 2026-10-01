@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Participants &amp; Teams — Interdepartmental Cup 2.0{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">👥 Participants &amp; Teams Directory</h1>
+        <p class="page-sub">Interdepartmental Cup 2.0 — Filter by Sport, Category (Boys/Girls), and Department</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.event_config') }}" class="btn btn-outline">⚙️ Event Config</a>
+        <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary">+ Create Tournament</a>
+    </div>
+</div>
+
+{% if setup_tournaments %}
+<!-- Quick Register Participant -->
+<div class="panel" style="margin-bottom: 24px; background: rgba(232, 255, 71, 0.03); border: 1px solid rgba(232, 255, 71, 0.2);">
+    <details>
+        <summary style="cursor: pointer; font-weight: 600; color: var(--accent); padding: 4px 0; user-select: none;">
+            ➕ Quick Register Participant / Team
+        </summary>
+        <form action="{{ url_for('admin.add_participant') }}" method="POST" style="margin-top: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end;">
+                <div>
+                    <label class="form-hint" style="display:block; margin-bottom: 4px;">Target Tournament</label>
+                    <select name="tournament_id" class="form-select form-select-sm" required>
+                        {% for t in setup_tournaments %}
+                        <option value="{{ t.id }}">{{ t.name }} ({{ t.sport_type | title }} · {{ t.gender }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-hint" style="display:block; margin-bottom: 4px;">Team / Participant Name</label>
+                    <input type="text" name="team_name" class="form-input form-input-sm" placeholder="e.g. CSE Warriors or Rahul" required>
+                </div>
+                <div>
+                    <label class="form-hint" style="display:block; margin-bottom: 4px;">Department</label>
+                    <select name="department" class="form-select form-select-sm" required>
+                        {% for d in departments %}
+                        <option value="{{ d.code }}">{{ d.code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-hint" style="display:block; margin-bottom: 4px;">Category / Gender</label>
+                    <select name="gender" class="form-select form-select-sm" required>
+                        <option value="Boys">Boys</option>
+                        <option value="Girls">Girls</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-hint" style="display:block; margin-bottom: 4px;">Captain / Player Name <em>(opt)</em></label>
+                    <input type="text" name="player_name" class="form-input form-input-sm" placeholder="e.g. Rahul Sharma">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary btn-sm" style="width: 100%; height: 36px;">+ Register</button>
+                </div>
+            </div>
+        </form>
+    </details>
+</div>
+{% endif %}
+
+<!-- Filters Bar -->
+<div class="filters-bar" style="background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 24px;">
+    <form method="GET" action="{{ url_for('admin.participants_directory') }}" class="filters-form" style="display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="filter-group" style="flex: 1; min-width: 180px;">
+            <label class="form-hint" style="display:block; margin-bottom: 4px;">Search Name</label>
+            <input type="text" name="q" value="{{ search_q }}" placeholder="Team or player name..." class="form-input form-input-sm">
+        </div>
+        <div class="filter-group">
+            <label class="form-hint" style="display:block; margin-bottom: 4px;">Sport</label>
+            <select name="sport" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="all" {% if sport_filter == 'all' %}selected{% endif %}>All Sports</option>
+                {% for s in sports %}
+                <option value="{{ s.code }}" {% if sport_filter == s.code %}selected{% endif %}>{{ s.icon }} {{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="form-hint" style="display:block; margin-bottom: 4px;">Category / Gender</label>
+            <select name="gender" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="all" {% if gender_filter == 'all' %}selected{% endif %}>All Categories</option>
+                <option value="Boys" {% if gender_filter == 'Boys' %}selected{% endif %}>Boys</option>
+                <option value="Girls" {% if gender_filter == 'Girls' %}selected{% endif %}>Girls</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="form-hint" style="display:block; margin-bottom: 4px;">Department</label>
+            <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="ALL" {% if dept_filter == 'ALL' %}selected{% endif %}>All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.code }}" {% if dept_filter == d.code %}selected{% endif %}>{{ d.code }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+            <a href="{{ url_for('admin.participants_directory') }}" class="btn btn-outline btn-sm">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Results Header -->
+<div class="section-header" style="margin-bottom: 16px;">
+    <h2 class="section-title">Registered Participants ({{ teams | length }})</h2>
+    <div style="font-size: 13px; color: var(--text-muted);">
+        Showing: 
+        <strong>{{ sport_filter | title }}</strong> · 
+        <strong>{{ gender_filter }}</strong> · 
+        Department: <strong>{{ dept_filter }}</strong>
+    </div>
+</div>
+
+{% if teams %}
+<div class="panel">
+    <div class="panel-body" style="padding: 0;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                    <th style="padding: 12px 16px;">Participant / Team</th>
+                    <th style="padding: 12px 16px;">Department</th>
+                    <th style="padding: 12px 16px;">Category</th>
+                    <th style="padding: 12px 16px;">Sport</th>
+                    <th style="padding: 12px 16px;">Tournament</th>
+                    <th style="padding: 12px 16px; text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in teams %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px 16px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="team-avatar" style="width: 32px; height: 32px; font-size: 14px; line-height: 32px; text-align: center; background: rgba(255,255,255,0.08); border-radius: 50%; font-weight: 700;">
+                                {{ team.name[0] | upper }}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">{{ team.name }}</div>
+                                {% if team.player_name and team.player_name != team.name %}
+                                <div style="font-size: 12px; color: var(--text-muted);">👤 Player: {{ team.player_name }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding: 12px 16px;">
+                        <span class="badge badge-dept badge-dept-{{ (team.department or 'CSE') | lower }}" style="padding: 3px 8px; border-radius: 4px; font-weight: 700; font-family: var(--font-mono); font-size: 12px; background: rgba(71, 178, 255, 0.15); color: var(--blue); border: 1px solid rgba(71, 178, 255, 0.3);">
+                            {{ team.department or 'CSE' }}
+                        </span>
+                    </td>
+                    <td style="padding: 12px 16px;">
+                        {% set g = team.gender or (team.tournament.gender if team.tournament else 'Boys') %}
+                        <span class="badge" style="padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; {% if g == 'Boys' %}background: rgba(71, 255, 178, 0.15); color: var(--green);{% else %}background: rgba(255, 77, 106, 0.15); color: var(--red);{% endif %}">
+                            {{ g }}
+                        </span>
+                    </td>
+                    <td style="padding: 12px 16px; font-weight: 500;">
+                        {{ team.sport_display }}
+                    </td>
+                    <td style="padding: 12px 16px;">
+                        {% if team.tournament %}
+                        <a href="{{ url_for('match.fixtures', tournament_id=team.tournament.id) }}" style="color: var(--accent); text-decoration: underline;">
+                            {{ team.tournament.name }}
+                        </a>
+                        {% else %}
+                        <span style="color: var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px 16px; text-align: right;">
+                        {% if team.tournament %}
+                        <a href="{{ url_for('team.manage_teams', tournament_id=team.tournament.id) }}" class="btn btn-outline btn-sm" style="font-size: 12px; padding: 4px 10px;">
+                            Manage →
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="empty-state" style="background: var(--bg-card); padding: 48px; text-align: center; border-radius: var(--radius); border: 1px solid var(--border);">
+    <div style="font-size: 40px; margin-bottom: 12px;">👥</div>
+    {% if not all_tournaments %}
+    <h3 style="margin-bottom: 8px;">No Tournaments Created Yet</h3>
+    <p style="color: var(--text-muted); margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+        Participants and teams belong to a tournament (e.g. Cricket Boys, Football Boys). Create your first tournament to start registering department teams!
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center;">
+        <a href="{{ url_for('tournament.create_tournament') }}" class="btn btn-primary">+ Create Tournament</a>
+        <a href="{{ url_for('admin.event_config') }}" class="btn btn-outline">⚙️ Event Config</a>
+    </div>
+    {% else %}
+    <h3>No participants match the selected filters</h3>
+    <p style="color: var(--text-muted); margin-bottom: 16px;">Try adjusting your Sport, Category, or Department filters, or register new participants above.</p>
+    <a href="{{ url_for('admin.participants_directory') }}" class="btn btn-secondary">Clear Filters</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
